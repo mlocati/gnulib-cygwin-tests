@@ -1,0 +1,108 @@
+name: Test
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/test.yml
+      - test/**
+  push:
+    branches:
+      - main
+    tags-ignore:
+      - "**"
+    paths:
+      - .github/workflows/test.yml
+      - test/**
+  workflow_dispatch:
+
+jobs:
+  exe:
+    name: Test with ${{ matrix.bits}} bits
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        bits:
+          - 32
+          - 64
+    env:
+      CYGWIN_NOWINPATH: 1
+      CHERE_INVOKING: 1
+    defaults:
+      run:
+        shell: C:\cygwin\bin\bash.exe --login -e {0}
+    steps:
+      -
+        name: Configure git
+        shell: cmd
+        run: git config --global core.autocrlf input
+      -
+        name: Checkout
+        uses: actions/checkout@v4
+      -
+        name: Restore cache
+        id: restore-cache
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ matrix.bits }}-bits
+          path: |
+            C:\cygwin-packages
+      -
+        name: Set variables
+        id: vars
+        shell: pwsh
+        run: ./test/vars.ps1 -Bits ${{ matrix.bits }}
+      -
+        name: Download Cygwin installer
+        shell: pwsh
+        run: Invoke-WebRequest -Uri https://cygwin.com/setup-x86_64.exe -OutFile C:\CygwinInstaller.exe
+      -
+        name: Install Cygwin
+        shell: cmd
+        run: >
+          C:\CygwinInstaller.exe
+          --root C:\cygwin
+          --local-package-dir C:\cygwin-packages
+          --packages ${{ steps.vars.outputs.cygwin-packages }}
+          --site http://mirrors.kernel.org/sourceware/cygwin/
+          --only-site
+          --quiet-mode
+          --upgrade-also
+          --no-shortcuts
+      -
+        name: Setup Cygwin environment
+        id: setup-cygwin
+        working-directory: C:\cygwin
+        run: >-
+          printf '\nPATH=${{ steps.vars.outputs.cygwin-path }}\nexport PATH\n' >>$HOME/.bash_profile
+          && /bin/mkdir -p "$HOME"
+          && /bin/mkdir -p /src/downloads
+      -
+        name: Fetch Gnulib
+        shell: cmd
+        working-directory: C:\cygwin
+        run: git clone --depth 1 https://git.savannah.gnu.org/git/gnulib.git gnulib
+      -
+        name: Test
+        working-directory: C:\cygwin\gnulib
+        env:
+          CC: ${{ steps.vars.outputs.mingw-host }}-gcc
+          CXX: ${{ steps.vars.outputs.mingw-host }}-g++
+          LD: ${{ steps.vars.outputs.mingw-host }}-ld
+          CPPFLAGS: -I/usr/${{ steps.vars.outputs.mingw-host }}/sys-root/mingw/include
+          LDFLAGS: -L/usr/${{ steps.vars.outputs.mingw-host }}/sys-root/mingw/lib
+        run: >-
+          ./gnulib-tool
+          --create-testdir
+          --dir=testdir-for-mingw
+          --single-configure
+          --without-privileged-tests
+          `./all-modules --for-mingw`
+      -
+        name: Persist cache
+        if: always() && steps.restore-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          key: ${{ steps.restore-cache.outputs.cache-primary-key }}
+          path: |
+            C:\cygwin-packages
+            C:\cygwin\src\downloads
