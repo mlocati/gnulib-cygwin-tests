@@ -189,7 +189,7 @@ jobs:
         if: (success() || failure()) && (steps.configure.outcome == 'success' || steps.configure.outcome == 'failure')
         run: >-
           mkdir /build-log;
-          if [ -d /testdir-for-mingw/build ]; then tar c -J -f /build-log/build.tar.xz /testdir-for-mingw/build; fi;
+          if [ -d /gnulib/testdir-for-mingw/build ]; then tar c -J -f /build-log/build.tar.xz /gnulib/testdir-for-mingw/build; fi;
           if [ -d /installed ]; then tar c -J -f /build-log/installed.tar.xz /installed; fi;
           ls -al /build-log
       -
