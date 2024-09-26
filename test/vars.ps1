@@ -6,7 +6,7 @@ param (
     [int] $Bits
 )
 
-$cygwinPackages = 'autoconf,automake,autotools,gettext-devel,gperf,make,patch,python3'
+$cygwinPackages = 'autoconf,automake,autotools,gettext-devel,gperf,libiconv-devel,make,patch,python3'
 
 switch ($Bits) {
     32 {
