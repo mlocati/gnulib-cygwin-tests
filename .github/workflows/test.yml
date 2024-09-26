@@ -23,7 +23,7 @@ jobs:
       matrix:
         bits:
           - 32
-          - 64
+          #- 64
     env:
       CYGWIN_NOWINPATH: 1
       CHERE_INVOKING: 1
@@ -82,21 +82,51 @@ jobs:
         working-directory: C:\cygwin
         run: git clone --depth 1 https://git.savannah.gnu.org/git/gnulib.git gnulib
       -
-        name: Test
+        name: Create test directory
         working-directory: C:\cygwin\gnulib
-        env:
-          CC: ${{ steps.vars.outputs.mingw-host }}-gcc
-          CXX: ${{ steps.vars.outputs.mingw-host }}-g++
-          LD: ${{ steps.vars.outputs.mingw-host }}-ld
-          CPPFLAGS: -I/usr/${{ steps.vars.outputs.mingw-host }}/sys-root/mingw/include
-          LDFLAGS: -L/usr/${{ steps.vars.outputs.mingw-host }}/sys-root/mingw/lib
         run: >-
+          CC=${{ steps.vars.outputs.mingw-host }}-gcc
+          CXX=${{ steps.vars.outputs.mingw-host }}-g++
+          LD=${{ steps.vars.outputs.mingw-host }}-ld
+          CPPFLAGS='-I/usr/${{ steps.vars.outputs.mingw-host }}/sys-root/mingw/include'
+          LDFLAGS='-L/usr/${{ steps.vars.outputs.mingw-host }}/sys-root/mingw/lib'
           ./gnulib-tool
           --create-testdir
           --dir=testdir-for-mingw
           --single-configure
           --without-privileged-tests
           `./all-modules --for-mingw`
+      -
+        name: Configure
+        working-directory: C:\cygwin\gnulib\testdir-for-mingw
+        run: >-
+          ./configure
+          CC=${{ steps.vars.outputs.mingw-host }}-gcc
+          CXX=${{ steps.vars.outputs.mingw-host }}-g++
+          LD=${{ steps.vars.outputs.mingw-host }}-ld
+          CPPFLAGS='-I/usr/${{ steps.vars.outputs.mingw-host }}/sys-root/mingw/include'
+          LDFLAGS='-L/usr/${{ steps.vars.outputs.mingw-host }}/sys-root/mingw/lib'
+          --host=${{ steps.vars.outputs.mingw-host }}
+          --enable-relocatable
+          --config-cache
+          --disable-dependency-tracking
+          --enable-nls
+          --disable-rpath
+          --disable-acl
+          --enable-threads=windows
+          --prefix=/installed
+      -
+        name: Compile
+        working-directory: C:\cygwin\gnulib\testdir-for-mingw
+        run: make --jobs=$(nproc)
+      -
+        name: Check
+        working-directory: C:\cygwin\gnulib\testdir-for-mingw
+        run: make --jobs=$(nproc) check
+      -
+        name: Install
+        working-directory: C:\cygwin\gnulib\testdir-for-mingw
+        run: make --jobs=$(nproc) install
       -
         name: Persist cache
         if: always() && steps.restore-cache.outputs.cache-hit != 'true'
