@@ -150,6 +150,7 @@ jobs:
           `./all-modules --for-mingw`
       -
         name: Configure
+        id: configure
         working-directory: C:\cygwin\gnulib\testdir-for-mingw
         run: >-
           mkdir build
@@ -181,6 +182,26 @@ jobs:
         name: Install
         working-directory: C:\cygwin\gnulib\testdir-for-mingw\build
         run: make --jobs=$(nproc) install
+      -
+        name: Prepare build log
+        id: prepare-build-log
+        if: (success() || failure()) && (steps.configure.outcome == 'success' || steps.configure.outcome == 'failure')
+        run: >-
+          mkdir /build-log;
+          if [ -d /testdir-for-mingw/build ]; then tar c -J -f /build-log/build.tar.xz /testdir-for-mingw/build; fi;
+          if [ -d /installed ]; then tar c -J -f /build-log/installed.tar.xz /installed; fi;
+          ls -al /build-log
+      -
+        name: Upload build log
+        if: always() && steps.prepare-build-log.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.bits }}-log
+          if-no-files-found: ignore
+          retention-days: 1
+          include-hidden-files: true
+          compression-level: 0
+          path: C:\cygwin\build-log
       -
         name: Persist cache
         if: always() && steps.restore-cache.outputs.cache-hit != 'true'
