@@ -75,7 +75,58 @@ jobs:
         run: >-
           printf '\nPATH=${{ steps.vars.outputs.cygwin-path }}\nexport PATH\n' >>$HOME/.bash_profile
           && /bin/mkdir -p "$HOME"
-          && /bin/mkdir -p /src/downloads
+      -
+        name: Test required commands
+        run: >-
+          for checkme in
+          awk
+          basename
+          bison
+          cat
+          chgrp
+          chmod
+          chown
+          cmp
+          cp
+          dd
+          diff
+          echo
+          expand
+          expr
+          false
+          gettext
+          gperf
+          grep
+          hostname
+          info
+          install
+          join
+          kill
+          libtool
+          ln
+          ls
+          make
+          md5sum
+          mkdir
+          mkfifo
+          mknod
+          mv
+          patch
+          printenv
+          pwd
+          python3
+          rm
+          rmdir
+          sed
+          sleep
+          sort
+          tar
+          tee
+          test
+          touch
+          true
+          uname
+          ; do printf "$checkme... "; if which $checkme >/dev/null; then echo 'ok'; else exit 1; fi done
       -
         name: Fetch Gnulib
         shell: cmd
@@ -135,4 +186,3 @@ jobs:
           key: ${{ steps.restore-cache.outputs.cache-primary-key }}
           path: |
             C:\cygwin-packages
-            C:\cygwin\src\downloads
