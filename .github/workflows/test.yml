@@ -28,6 +28,7 @@ jobs:
     env:
       CYGWIN_NOWINPATH: 1
       CHERE_INVOKING: 1
+      ICONV_VERSION: 1.17
     defaults:
       run:
         shell: C:\cygwin\bin\bash.exe --login -e {0}
@@ -47,6 +48,7 @@ jobs:
           key: ${{ matrix.bits }}-bits
           path: |
             C:\cygwin-packages
+            C:\cygwin\src\downloads
       -
         name: Set variables
         id: vars
@@ -77,6 +79,8 @@ jobs:
         run: >-
           printf '\nPATH=${{ steps.vars.outputs.cygwin-path }}\nexport PATH\n' >>$HOME/.bash_profile
           && /bin/mkdir -p "$HOME"
+          && /bin/mkdir -p /src/downloads
+          && /bin/mkdir -p /installed
       -
         name: Test required commands
         run: >-
@@ -130,6 +134,48 @@ jobs:
           uname
           ; do printf "$checkme... "; if which $checkme >/dev/null; then echo 'ok'; else exit 1; fi done
       -
+        name: Download iconv
+        working-directory: C:\cygwin\src\downloads
+        shell: pwsh
+        run: |
+          if (Test-Path -LiteralPath "libiconv-$env:ICONV_VERSION.tar.gz" -PathType Leaf) {
+            Write-Host -Object 'Already downloaded'
+          } else {
+            Invoke-WebRequest "https://ftp.gnu.org/pub/gnu/libiconv/libiconv-$env:ICONV_VERSION.tar.gz" -OutFile "libiconv-$env:ICONV_VERSION.tar.gz"
+            Write-Host -Object 'Downloaded'
+          }
+      -
+        name: Extract iconv
+        working-directory: C:\cygwin\src
+        run: tar x -z -f downloads/libiconv-$ICONV_VERSION.tar.gz
+      -
+        name: Configure iconv
+        id: iconv-configure
+        working-directory: C:\cygwin\src\libiconv-${{ env.ICONV_VERSION }}
+        run: >-
+          mkdir build
+          && cd build
+          && ../configure
+          CC=${{ steps.vars.outputs.mingw-host }}-gcc
+          CXX=${{ steps.vars.outputs.mingw-host }}-g++
+          LD=${{ steps.vars.outputs.mingw-host }}-ld
+          CPPFLAGS='${{ steps.vars.outputs.cpp-flags }}'
+          LDFLAGS='${{ steps.vars.outputs.ld-flags }}'
+          ${{ steps.vars.outputs.configure-args }}
+          --prefix=/installed
+      -
+        name: Compile iconv
+        working-directory: C:\cygwin\src\libiconv-${{ env.ICONV_VERSION }}\build
+        run: make --jobs=$(nproc)
+      -
+        name: Check iconv
+        working-directory: C:\cygwin\src\libiconv-${{ env.ICONV_VERSION }}\build
+        run: make --jobs=$(nproc) check
+      -
+        name: Install iconv
+        working-directory: C:\cygwin\src\libiconv-${{ env.ICONV_VERSION }}\build
+        run: make --jobs=$(nproc) install
+      -
         name: Fetch Gnulib
         shell: cmd
         working-directory: C:\cygwin
@@ -141,8 +187,8 @@ jobs:
           CC=${{ steps.vars.outputs.mingw-host }}-gcc
           CXX=${{ steps.vars.outputs.mingw-host }}-g++
           LD=${{ steps.vars.outputs.mingw-host }}-ld
-          CPPFLAGS='-I/usr/${{ steps.vars.outputs.mingw-host }}/sys-root/mingw/include'
-          LDFLAGS='-L/usr/${{ steps.vars.outputs.mingw-host }}/sys-root/mingw/lib'
+          CPPFLAGS='${{ steps.vars.outputs.cpp-flags }} -I/installed/include'
+          LDFLAGS='${{ steps.vars.outputs.ld-flags }} -L/installed/lib'
           ./gnulib-tool
           --create-testdir
           --dir=testdir-for-mingw
@@ -150,8 +196,7 @@ jobs:
           --without-privileged-tests
           `./all-modules --for-mingw`
       -
-        name: Configure
-        id: configure
+        name: Configure test directory
         working-directory: C:\cygwin\gnulib\testdir-for-mingw
         run: >-
           mkdir build
@@ -160,35 +205,30 @@ jobs:
           CC=${{ steps.vars.outputs.mingw-host }}-gcc
           CXX=${{ steps.vars.outputs.mingw-host }}-g++
           LD=${{ steps.vars.outputs.mingw-host }}-ld
-          CPPFLAGS='-I/usr/${{ steps.vars.outputs.mingw-host }}/sys-root/mingw/include'
-          LDFLAGS='-L/usr/${{ steps.vars.outputs.mingw-host }}/sys-root/mingw/lib'
-          --host=${{ steps.vars.outputs.mingw-host }}
-          --enable-relocatable
-          --config-cache
-          --disable-dependency-tracking
-          --enable-nls
-          --disable-rpath
-          --disable-acl
-          --enable-threads=windows
+          CPPFLAGS='${{ steps.vars.outputs.cpp-flags }} -I/installed/include'
+          LDFLAGS='${{ steps.vars.outputs.ld-flags }} -L/installed/lib'
+          ${{ steps.vars.outputs.configure-args }}
           --prefix=/installed
       -
-        name: Compile
+        name: Compile test directory
         working-directory: C:\cygwin\gnulib\testdir-for-mingw\build
         run: make --jobs=$(nproc)
       -
-        name: Check
+        name: Check test directory
         working-directory: C:\cygwin\gnulib\testdir-for-mingw\build
         run: make --jobs=$(nproc) check
       -
-        name: Install
+        name: Install test directory
         working-directory: C:\cygwin\gnulib\testdir-for-mingw\build
         run: make --jobs=$(nproc) install
       -
         name: Prepare build log
         id: prepare-build-log
-        if: (success() || failure()) && (steps.configure.outcome == 'success' || steps.configure.outcome == 'failure')
+        if: (success() || failure()) && (steps.iconv-configure.outcome == 'success' || steps.iconv-configure.outcome == 'failure')
         run: >-
           mkdir /build-log;
+          if [ -d /src/libiconv-$ICONV_VERSION/build ]; then tar c -J -f /build-log/iconv.tar.xz /src/libiconv-$ICONV_VERSION/build; fi;
+          if [ -d /gnulib/testdir-for-mingw/build ]; then tar c -J -f /build-log/build.tar.xz /gnulib/testdir-for-mingw/build; fi;
           if [ -d /gnulib/testdir-for-mingw/build ]; then tar c -J -f /build-log/build.tar.xz /gnulib/testdir-for-mingw/build; fi;
           if [ -d /installed ]; then tar c -J -f /build-log/installed.tar.xz /installed; fi;
           ls -al /build-log
@@ -211,3 +251,4 @@ jobs:
           key: ${{ steps.restore-cache.outputs.cache-primary-key }}
           path: |
             C:\cygwin-packages
+            C:\cygwin\src\downloads

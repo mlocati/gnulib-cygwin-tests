@@ -6,7 +6,7 @@ param (
     [int] $Bits
 )
 
-$cygwinPackages = 'autoconf,automake,autotools,bison,gettext-devel,gperf,libiconv-devel,libtool,make,patch,python3'
+$cygwinPackages = 'autoconf,automake,autotools,bison,gettext-devel,gperf,libtool,make,patch,python3'
 
 switch ($Bits) {
     32 {
@@ -19,9 +19,22 @@ switch ($Bits) {
     }
 }
 
+$configureArgs = @(
+    "--host=$mingwHost",
+    '--enable-relocatable',
+    '--config-cache',
+    '--disable-dependency-tracking',
+    '--enable-nls',
+    '--disable-rpath',
+    '--disable-acl',
+    '--enable-threads=windows'
+)
 
 "cygwin-packages=$cygwinPackages" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-"mingw-host=$mingwHost" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 "cygwin-path=/installed/bin:/usr/$mingwHost/bin:/usr/$mingwHost/sys-root/mingw/bin:/usr/sbin:/usr/bin:/sbin:/bin:/cygdrive/c/Windows/system32:/cygdrive/c/Windows" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+"mingw-host=$mingwHost" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+"configure-args=$configureArgs" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+"cpp-flags=-I/usr/$mingwHost/sys-root/mingw/include" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+"ld-flags=-L/usr/$mingwHost/sys-root/mingw/lib" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 Write-Output '## Outputs'
 Get-Content $env:GITHUB_OUTPUT
