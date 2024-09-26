@@ -20,10 +20,11 @@ jobs:
     name: Test with ${{ matrix.bits}} bits
     runs-on: windows-2022
     strategy:
+      fail-fast: false
       matrix:
         bits:
           - 32
-          #- 64
+          - 64
     env:
       CYGWIN_NOWINPATH: 1
       CHERE_INVOKING: 1
@@ -198,7 +199,7 @@ jobs:
         with:
           name: ${{ matrix.bits }}-log
           if-no-files-found: ignore
-          retention-days: 1
+          retention-days: 7
           include-hidden-files: true
           compression-level: 0
           path: C:\cygwin\build-log
