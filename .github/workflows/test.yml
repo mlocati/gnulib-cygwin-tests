@@ -31,7 +31,7 @@ jobs:
       ICONV_VERSION: 1.17
     defaults:
       run:
-        shell: C:\cygwin\bin\bash.exe --login -e {0}
+        shell: C:\cygwin\bin\bash.exe --login -o igncr {0}
     steps:
       -
         name: Configure git
@@ -76,11 +76,11 @@ jobs:
         name: Setup Cygwin environment
         id: setup-cygwin
         working-directory: C:\cygwin
-        run: >-
+        run: |
           printf '\nPATH=${{ steps.vars.outputs.cygwin-path }}\nexport PATH\n' >>$HOME/.bash_profile
-          && /bin/mkdir -p "$HOME"
-          && /bin/mkdir -p /src/downloads
-          && /bin/mkdir -p /installed
+          /bin/mkdir -p "$HOME"
+          /bin/mkdir -p /src/downloads
+          /bin/mkdir -p /installed
       -
         name: Test required commands
         run: >-
@@ -132,7 +132,7 @@ jobs:
           touch
           true
           uname
-          ; do printf "$checkme... "; if which $checkme >/dev/null; then echo 'ok'; else exit 1; fi done
+          ; do printf "$checkme... "; if which $checkme >/dev/null; then echo 'found.'; else exit 1; fi done
       -
         name: Download iconv
         working-directory: C:\cygwin\src\downloads
@@ -152,17 +152,17 @@ jobs:
         name: Configure iconv
         id: iconv-configure
         working-directory: C:\cygwin\src\libiconv-${{ env.ICONV_VERSION }}
-        run: >-
+        run: |
           mkdir build
-          && cd build
-          && ../configure
-          CC=${{ steps.vars.outputs.mingw-host }}-gcc
-          CXX=${{ steps.vars.outputs.mingw-host }}-g++
-          LD=${{ steps.vars.outputs.mingw-host }}-ld
-          CPPFLAGS='${{ steps.vars.outputs.cpp-flags }}'
-          LDFLAGS='${{ steps.vars.outputs.ld-flags }}'
-          ${{ steps.vars.outputs.configure-args }}
-          --prefix=/installed
+          cd build
+          ../configure \
+            CC=${{ steps.vars.outputs.mingw-host }}-gcc \
+            CXX=${{ steps.vars.outputs.mingw-host }}-g++ \
+            LD=${{ steps.vars.outputs.mingw-host }}-ld \
+            CPPFLAGS='${{ steps.vars.outputs.cpp-flags }}' \
+            LDFLAGS='${{ steps.vars.outputs.ld-flags }}' \
+            ${{ steps.vars.outputs.configure-args }} \
+            --prefix=/installed
       -
         name: Compile iconv
         working-directory: C:\cygwin\src\libiconv-${{ env.ICONV_VERSION }}\build
@@ -183,32 +183,32 @@ jobs:
       -
         name: Create test directory
         working-directory: C:\cygwin\gnulib
-        run: >-
-          CC=${{ steps.vars.outputs.mingw-host }}-gcc
-          CXX=${{ steps.vars.outputs.mingw-host }}-g++
-          LD=${{ steps.vars.outputs.mingw-host }}-ld
-          CPPFLAGS='${{ steps.vars.outputs.cpp-flags }} -I/installed/include'
-          LDFLAGS='${{ steps.vars.outputs.ld-flags }} -L/installed/lib'
-          ./gnulib-tool
-          --create-testdir
-          --dir=testdir-for-mingw
-          --single-configure
-          --without-privileged-tests
-          `./all-modules --for-mingw`
+        run: |
+          CC=${{ steps.vars.outputs.mingw-host }}-gcc \
+            CXX=${{ steps.vars.outputs.mingw-host }}-g++ \
+            LD=${{ steps.vars.outputs.mingw-host }}-ld \
+            CPPFLAGS='${{ steps.vars.outputs.cpp-flags }} -I/installed/include' \
+            LDFLAGS='${{ steps.vars.outputs.ld-flags }} -L/installed/lib' \
+            ./gnulib-tool \
+            --create-testdir \
+            --dir=testdir-for-mingw \
+            --single-configure \
+            --without-privileged-tests \
+            `./all-modules --for-mingw`
       -
         name: Configure test directory
         working-directory: C:\cygwin\gnulib\testdir-for-mingw
-        run: >-
+        run: |
           mkdir build
-          && cd build
-          && ../configure
-          CC=${{ steps.vars.outputs.mingw-host }}-gcc
-          CXX=${{ steps.vars.outputs.mingw-host }}-g++
-          LD=${{ steps.vars.outputs.mingw-host }}-ld
-          CPPFLAGS='${{ steps.vars.outputs.cpp-flags }} -I/installed/include'
-          LDFLAGS='${{ steps.vars.outputs.ld-flags }} -L/installed/lib'
-          ${{ steps.vars.outputs.configure-args }}
-          --prefix=/installed
+          cd build
+          ../configure \
+            CC=${{ steps.vars.outputs.mingw-host }}-gcc \
+            CXX=${{ steps.vars.outputs.mingw-host }}-g++ \
+            LD=${{ steps.vars.outputs.mingw-host }}-ld \
+            CPPFLAGS='${{ steps.vars.outputs.cpp-flags }} -I/installed/include' \
+            LDFLAGS='${{ steps.vars.outputs.ld-flags }} -L/installed/lib' \
+            ${{ steps.vars.outputs.configure-args }} \
+            --prefix=/installed
       -
         name: Compile test directory
         working-directory: C:\cygwin\gnulib\testdir-for-mingw\build
@@ -225,12 +225,20 @@ jobs:
         name: Prepare build log
         id: prepare-build-log
         if: (success() || failure()) && (steps.iconv-configure.outcome == 'success' || steps.iconv-configure.outcome == 'failure')
-        run: >-
-          mkdir /build-log;
-          if [ -d /src/libiconv-$ICONV_VERSION/build ]; then tar c -J -f /build-log/iconv.tar.xz /src/libiconv-$ICONV_VERSION/build; fi;
-          if [ -d /gnulib/testdir-for-mingw/build ]; then tar c -J -f /build-log/build.tar.xz /gnulib/testdir-for-mingw/build; fi;
-          if [ -d /gnulib/testdir-for-mingw/build ]; then tar c -J -f /build-log/build.tar.xz /gnulib/testdir-for-mingw/build; fi;
-          if [ -d /installed ]; then tar c -J -f /build-log/installed.tar.xz /installed; fi;
+        run: |
+          mkdir /build-log
+          if [ -d /src/libiconv-$ICONV_VERSION/build ]; then
+            tar c -J -f /build-log/iconv.tar.xz /src/libiconv-$ICONV_VERSION/build
+          fi
+          if [ -d /gnulib/testdir-for-mingw/build ]; then
+            tar c -J -f /build-log/build.tar.xz /gnulib/testdir-for-mingw/build
+          fi
+          if [ -d /gnulib/testdir-for-mingw/build ]; then
+            tar c -J -f /build-log/build.tar.xz /gnulib/testdir-for-mingw/build
+          fi
+          if [ -d /installed ]; then
+            tar c -J -f /build-log/installed.tar.xz /installed
+          fi
           ls -al /build-log
       -
         name: Upload build log
